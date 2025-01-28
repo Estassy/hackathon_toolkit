@@ -1,0 +1,4 @@
+// File: .gitignore
+# ne pas tenir compte des fichiers de configuration .pyc
+*.pyc
+
