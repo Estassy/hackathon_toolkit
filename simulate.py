@@ -39,10 +39,15 @@ def simulation_config(config_path: str, new_agent: bool = True) -> Tuple[MazeEnv
         render_mode=config.get('render_mode', None),
         seed=config.get('seed', None)                               # Seed for reproducibility
     )
+    state_size = env.single_agent_state_size  # Size of the state for a single agent
+    action_size = env.action_space.n          # Number of possible actions
 
     # Agent configuration
-    agent = MyAgent(num_agents=config.get('num_agents')) if new_agent else None
-
+    agent = MyAgent(
+        num_agents=config.get('num_agents'),
+        state_size=state_size,
+        action_size=action_size
+    ) if new_agent else None
     return env, agent, config
 
 
@@ -69,63 +74,47 @@ def plot_cumulated_rewards(rewards: list, interval: int = 100):
     plt.show()
 
 
-def train(config_path: str) -> MyAgent:
+def train(config_path: str):
     """
     Train an agent on the configured environment.
-
-    Args:
-        config_path (str): Path to the configuration JSON file.
-
-    Returns:
-        MyAgent: The trained agent.
     """
-
-    # Environment and agent configuration
     env, agent, config = simulation_config(config_path)
     max_episodes = config.get('max_episodes')
 
-    # Metrics to follow the performance
     all_rewards = []
-    total_reward = 0
-    episode_count = 0
-    
-    # Initial reset of the environment
-    state, info = env.reset()
-    time.sleep(0.5)
 
     try:
-        while episode_count < max_episodes:
-            # Determine agents actions
-            actions = agent.get_action(state)
+        for episode in range(max_episodes):
+            state, _ = env.reset()
+            total_reward = 0
 
-            # Execution of a simulation step
-            state, rewards, terminated, truncated, info = env.step(actions)
-            total_reward += np.sum(rewards)
+            while True:
+                # Actions des agents
+                actions = agent.get_action(state)
 
-            # Update agent policy
-            agent.update_policy(actions, state, rewards)
+                # Étape dans l'environnement
+                next_state, rewards, terminated, truncated, _ = env.step(actions)
+                total_reward += np.sum(rewards)
 
-            # Display of the step information
-            print(f"\rEpisode {episode_count + 1}, Step {info['current_step']}, "
-                  f"Reward: {total_reward:.2f}, "
-                  f"Evacuated: {len(info['evacuated_agents'])}, "
-                  f"Deactivated: {len(info['deactivated_agents'])}", end='')
-            
-            # Pause
-            time.sleep(0.5)
-            
-            # If the episode is terminated
-            if terminated or truncated:
-                print("\r")
-                episode_count += 1
-                all_rewards.append(total_reward)
-                total_reward = 0
-                
-                if episode_count < max_episodes:
-                    state, info = env.reset()
+                # Mise à jour de la politique
+                agent.update_policy(state, actions, rewards, next_state, terminated)
+
+                # Mettre à jour l'état
+                state = next_state
+
+                # Si l'épisode est terminé
+                if terminated or truncated:
+                    break
+
+            # Enregistrer les récompenses cumulées
+            all_rewards.append(total_reward)
+            print(f"Episode {episode + 1}/{max_episodes} - Total Reward: {total_reward:.2f}")
+
+        # Tracer les récompenses cumulées
+        plot_cumulated_rewards(all_rewards)
 
     except KeyboardInterrupt:
-        print("\nSimulation interrupted by the user")
+        print("\nSimulation interrupted by the user.")
     
     finally:
         env.close()
