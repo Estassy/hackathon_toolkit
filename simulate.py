@@ -41,7 +41,12 @@ def simulation_config(config_path: str, new_agent: bool = True) -> Tuple[MazeEnv
     )
 
     # Agent configuration
-    agent = MyAgent(num_agents=config.get('num_agents')) if new_agent else None
+    agent = MyAgent(
+        num_agents=config['num_agents'],
+        grid_size=config['grid_size'],
+        max_lidar_dist_main=config['max_lidar_dist_main'],
+        max_lidar_dist_second=config['max_lidar_dist_second']
+    ) if new_agent else None
 
     return env, agent, config
 
@@ -133,7 +138,7 @@ def train(config_path: str) -> MyAgent:
     return agent, all_rewards
 
 
-def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 5) -> tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Evaluate a trained agent on multiple configurations, calculate metrics, and visualize results.
 
