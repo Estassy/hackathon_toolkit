@@ -118,7 +118,10 @@ class MazeEnv(gym.Env):
         ]
         return start_positions, goal_area
 
-
+    def get_env_map(self):
+        """Retourne la carte actuelle de l'environnement."""
+        return np.array(self.grid)  # Convertit en numpy array si besoin
+    
     def initialize_dynamic_obstacles(self):
         """
         Initialize dynamic obstacles with seeded random positions,
@@ -457,63 +460,79 @@ class MazeEnv(gym.Env):
 
 
     def resolve_collisions(self, proposed_positions: List[np.ndarray]) -> None:
-        # Compute priorities only for active agents
+        # On calcule la "priorité" pour l'ordre de résolution des collisions
         priorities = []
         for i, pos in enumerate(proposed_positions):
             if i in self.evacuated_agents or i in self.deactivated_agents:
                 priorities.append(float('inf'))
                 continue
+            # Priorité = distance mini au goal
             min_dist_to_goal = min(np.linalg.norm(pos - np.array(goal)) for goal in self.goal_area)
             priorities.append(min_dist_to_goal)
 
+        # On trie les agents par ordre croissant de distance au goal
         agent_order = sorted(range(len(priorities)), key=lambda k: priorities[k])
         new_positions = [pos.copy() for pos in self.agent_positions]
 
         def is_valid_position(pos, agent_idx):
-            """ Return the type of collision for a given position"""
-            if not (0 <= pos[0] < self.grid_size and 0 <= pos[1] < self.grid_size):   # Check boundaries
+            """ Return (is_valid, collision_type) for the proposed position."""
+            # 1) On vérifie les limites de la grille
+            if not (0 <= pos[0] < self.grid_size and 0 <= pos[1] < self.grid_size):
                 return False, "out_of_bounds"
 
             pos_tuple = tuple(pos.astype(int))
 
-            # Check walls
+            # 2) On vérifie s'il y a un mur
             if pos_tuple in self.walls:
                 return False, "wall"
 
-            # Check dynamic obstacles
+            # 3) On vérifie s'il y a un obstacle dynamique
             if pos_tuple in self.dynamic_obstacles:
                 return False, "dynamic_obstacle"
+
+            # 4) On vérifie s'il y a un obstacle dynamique dans les cases adjacentes
             x, y = pos
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)]:
                 adjacent_pos = (x + dx, y + dy)
                 if adjacent_pos in self.dynamic_obstacles:
                     return False, "dynamic_obstacle"
 
-            # Check other agents
-            for i, other_pos in enumerate(new_positions):
-                if i != agent_idx and i not in self.evacuated_agents and i not in self.deactivated_agents:
+            # 5) On vérifie qu'aucun autre agent actif n'est déjà là
+            for j, other_pos in enumerate(new_positions):
+                if j != agent_idx and j not in self.evacuated_agents and j not in self.deactivated_agents:
                     if np.array_equal(pos.astype(int), other_pos.astype(int)):
                         return False, "agent"
 
             return True, None
 
-        # Resolve collisions by priority order
+        # On résout les collisions par ordre de priorité
         for idx in agent_order:
             if idx in self.evacuated_agents or idx in self.deactivated_agents:
                 continue
-            
+
             valid, col_type = is_valid_position(proposed_positions[idx], idx)
-            # Si la position proposée est valide, l'utiliser
+
             if valid:
+                # Position valide : on autorise le déplacement
                 new_positions[idx] = proposed_positions[idx]
-                continue
-            elif col_type in ["out_of_bounds", "agent"]:
-                new_positions[idx] = self.agent_positions[idx]
-            elif col_type in ["dynamic_obstacle", "wall"]:
-                new_positions[idx] = np.array([-1, -1])
-                self.deactivated_agents.add(idx)
+            else:
+                if col_type in ["out_of_bounds", "agent"]:
+                    # On ne désactive pas, on reste simplement sur place
+                    new_positions[idx] = self.agent_positions[idx]
+                elif col_type in ["dynamic_obstacle", "wall"]:
+                    # Ancien code désactivait l'agent :
+                    # new_positions[idx] = np.array([-1, -1])
+                    # self.deactivated_agents.add(idx)
+
+                    # NOUVELLE LOGIQUE : on reste sur place (pas de désactivation)
+                    new_positions[idx] = self.agent_positions[idx]
+
+                    # Si tu veux un petit malus, tu peux le gérer dans reward.py
+                    # par ex. en notant quelque part que l'agent "heurte un mur".
+                    # Mais on ne le retire plus du jeu.
 
         self.agent_positions = new_positions
+
 
 
     def seed(self, seed=None):  

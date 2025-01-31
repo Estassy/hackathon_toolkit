@@ -1,1 +1,12 @@
-{"param": "value_4"}
+{
+  "grid_size": 15,
+  "walls_proportion": 0.2,
+  "num_dynamic_obstacles": 1,
+  "num_agents": 2,
+  "communication_range": 5,
+  "max_lidar_dist_main": 4,
+  "max_lidar_dist_second": 2,
+  "max_episodes": 500,
+  "max_episode_steps": 200,
+  "render_mode": "human"
+}
