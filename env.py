@@ -63,7 +63,13 @@ class MazeEnv(gym.Env):
         self.max_lidar_dist_main = max_lidar_dist_main
         self.max_lidar_dist_second = max_lidar_dist_second
         self.action_space = spaces.Discrete(7)
-        self.single_agent_state_size = 3 + 3  + 2 * 3 + 4 * (num_agents - 1) + 6 * (num_agents - 1)  # State space for a single agent
+        # self.single_agent_state_size = 3 + 3  + 2 * 3 + 4 * (num_agents - 1) + 6 * (num_agents - 1)  # State space for a single agent
+        
+        #############################
+        # Forcer la taille d'état par agent à 42
+        self.single_agent_state_size = 42
+        #############################
+
         # agent pos, goal pos, LIDAR obs (3 directions dist, obstacle found), other agent positions + LIDAR obs
         self.lidar_directions = {
             0: [(-1, 0), (0, 1), (0, -1)],   # Up main, Right then Left second
@@ -230,65 +236,160 @@ class MazeEnv(gym.Env):
         return results
 
 
-    def get_agent_state(self, agent_idx: int) -> np.ndarray:
-        """Get state for a specific agent: self position, goal position, lidar scan, and other close agents positions"""
-        state = np.full(self.single_agent_state_size, -1, dtype=np.float32)   # Initialization with -1
+    # def get_agent_state(self, agent_idx: int) -> np.ndarray:
+    #     """Get state for a specific agent: self position, goal position, lidar scan, and other close agents positions"""
+    #     state = np.full(self.single_agent_state_size, -1, dtype=np.float32)   # Initialization with -1
         
-        # If the agent is deactivated or evacuated, return state with -1
+    #     # If the agent is deactivated or evacuated, return state with -1
+    #     if agent_idx in self.deactivated_agents or agent_idx in self.evacuated_agents:
+    #         return state
+        
+    #     # Agent position
+    #     agent_pos = np.array(self.agent_positions[agent_idx])
+    #     state[0:2] = agent_pos
+    #     state[2] = self.lidar_orientation[agent_idx]
+
+    #     # Agent status (evacuated, deactivated, running)
+    #     if agent_idx in self.evacuated_agents:
+    #         state[3] = 1
+    #     elif agent_idx in self.deactivated_agents:
+    #         state[3] = 2
+    #     else:
+    #         state[3] = 0
+
+    #     # Goal position
+    #     goal_pos = self.goal_area[agent_idx]
+    #     state[4:6] = goal_pos
+
+    #     # LIDAR state
+    #     for i in range(3):  # Main direction & 2 others directions
+    #         obstacle_pos = np.array([self.lidar_data[agent_idx][3 * i], self.lidar_data[agent_idx][3 * i + 1]])
+    #         distance_to_obstacle = np.linalg.norm(obstacle_pos - agent_pos)
+    #         state[6 + i * 2] = distance_to_obstacle
+    #         state[6 + i * 2 + 1] = self.lidar_data[agent_idx][3 * i + 2]
+
+    #     # Other agents positions and LIDAR data within communication range
+    #     added_agents_count = 0
+
+    #     for i, other_pos in enumerate(self.agent_positions):
+    #         if i!= agent_idx and i not in self.evacuated_agents:
+    #             distance = np.linalg.norm(agent_pos - other_pos)
+    #             if distance < self.communication_range:   # Communication only if in communication range
+    #                 base_index = 11 + added_agents_count * 2
+    #                 # Insert other agent's position
+    #                 state[(12 + added_agents_count * 10):(12 + added_agents_count * 10 + 2)] = other_pos
+    #                 state[(12 + added_agents_count * 10 + 2)] = self.lidar_orientation[i]
+    #                 # Insert other agent's status
+    #                 if i in self.evacuated_agents:
+    #                     state[(12 + added_agents_count * 10 + 3)] = 1
+    #                 elif i in self.deactivated_agents:
+    #                     state[(12 + added_agents_count * 10 + 3)] = 2
+    #                 else:
+    #                     state[(12 + added_agents_count * 10 + 3)] = 0
+    #                 # Insert LIDAR data of the other agent
+    #                 for j in range(3):
+    #                     other_obstacle_pos = np.array([self.lidar_data[i][3 * j], self.lidar_data[i][3 * j + 1]])
+    #                     distance_to_other_obstacle = np.linalg.norm(other_obstacle_pos - other_pos)
+    #                     state[(12 + added_agents_count * 10 + 4 + j * 2)] = distance_to_other_obstacle
+    #                     state[(12 + added_agents_count * 10 + 4 + j * 2 + 1)] = self.lidar_data[i][3 * j + 2]
+    #                 added_agents_count += 1
+
+    #     return state
+
+    def get_agent_state(self, agent_idx: int) -> np.ndarray:
+        """
+        Get state for a specific agent under a fixed dimension (42).
+        This ensures we always return the same size vector,
+        even if the environment or number of agents changes.
+        """
+
+        # --- 1) On force la taille à 42
+        state = np.full(self.single_agent_state_size, -1, dtype=np.float32)
+
+        # Si l'agent est déjà hors jeu, on ne remplit rien (tout reste -1)
         if agent_idx in self.deactivated_agents or agent_idx in self.evacuated_agents:
             return state
-        
-        # Agent position
+
+        # --- 2) REMPLIR LES CHAMPS DISPONIBLES ---
+
+        # 2.1) Position de l'agent (2 cases) + orientation LIDAR (1 case)
         agent_pos = np.array(self.agent_positions[agent_idx])
-        state[0:2] = agent_pos
+        state[0:2] = agent_pos  # x,y
         state[2] = self.lidar_orientation[agent_idx]
 
-        # Agent status (evacuated, deactivated, running)
+        # 2.2) Statut de l'agent (1 case)
         if agent_idx in self.evacuated_agents:
-            state[3] = 1
+            state[3] = 1.0
         elif agent_idx in self.deactivated_agents:
-            state[3] = 2
+            state[3] = 2.0
         else:
-            state[3] = 0
+            state[3] = 0.0
 
-        # Goal position
+        # 2.3) Position du but (2 cases)
         goal_pos = self.goal_area[agent_idx]
-        state[4:6] = goal_pos
+        state[4:6] = goal_pos  # x_goal, y_goal
 
-        # LIDAR state
-        for i in range(3):  # Main direction & 2 others directions
-            obstacle_pos = np.array([self.lidar_data[agent_idx][3 * i], self.lidar_data[agent_idx][3 * i + 1]])
+        # 2.4) LIDAR principal + 2 directions secondaires (3x2=6 cases)
+        #  (distance, type_obstacle) pour chaque direction
+        for i in range(3):
+            # i=0 => principal, i=1 => direction secondaire, i=2 => autre secondaire
+            obstacle_pos = np.array([self.lidar_data[agent_idx][3 * i],
+                                    self.lidar_data[agent_idx][3 * i + 1]])
             distance_to_obstacle = np.linalg.norm(obstacle_pos - agent_pos)
-            state[6 + i * 2] = distance_to_obstacle
+            state[6 + i * 2]     = distance_to_obstacle
             state[6 + i * 2 + 1] = self.lidar_data[agent_idx][3 * i + 2]
+        # => on a rempli [6..11]
 
-        # Other agents positions and LIDAR data within communication range
+        # 2.5) Autres agents dans la zone de communication
+        # Indice de départ dans le vecteur pour la partie "autres agents"
+        base_for_others = 12
+
+        # On suppose qu'on peut stocker jusqu'à 3 autres agents (si total 4).
+        # Ici, chaque "autre agent" prend 10 cases => 3 x 10 = 30
+        # => 12..41 (30 valeurs). = 42 total.
+
         added_agents_count = 0
-
+        # On parcourt tous les autres agents
         for i, other_pos in enumerate(self.agent_positions):
-            if i!= agent_idx and i not in self.evacuated_agents:
+            if i != agent_idx and i not in self.evacuated_agents:
+                # Check distance
                 distance = np.linalg.norm(agent_pos - other_pos)
-                if distance < self.communication_range:   # Communication only if in communication range
-                    base_index = 11 + added_agents_count * 2
-                    # Insert other agent's position
-                    state[(12 + added_agents_count * 10):(12 + added_agents_count * 10 + 2)] = other_pos
-                    state[(12 + added_agents_count * 10 + 2)] = self.lidar_orientation[i]
-                    # Insert other agent's status
+                if distance < self.communication_range:
+                    # Indice de base pour l'agent "i"
+                    base_idx = base_for_others + added_agents_count * 10
+
+                    # -- (a) Position (2 cases)
+                    state[base_idx : base_idx+2] = other_pos
+                    # -- (b) Orientation (1 case)
+                    state[base_idx+2] = self.lidar_orientation[i]
+                    # -- (c) Statut (1 case)
                     if i in self.evacuated_agents:
-                        state[(12 + added_agents_count * 10 + 3)] = 1
+                        state[base_idx+3] = 1.0
                     elif i in self.deactivated_agents:
-                        state[(12 + added_agents_count * 10 + 3)] = 2
+                        state[base_idx+3] = 2.0
                     else:
-                        state[(12 + added_agents_count * 10 + 3)] = 0
-                    # Insert LIDAR data of the other agent
+                        state[base_idx+3] = 0.0
+                    # -- (d) LIDAR data of l'autre agent (3 x 2 = 6 cases)
+                    # distance + type
+                    # On répète la logique
                     for j in range(3):
-                        other_obstacle_pos = np.array([self.lidar_data[i][3 * j], self.lidar_data[i][3 * j + 1]])
-                        distance_to_other_obstacle = np.linalg.norm(other_obstacle_pos - other_pos)
-                        state[(12 + added_agents_count * 10 + 4 + j * 2)] = distance_to_other_obstacle
-                        state[(12 + added_agents_count * 10 + 4 + j * 2 + 1)] = self.lidar_data[i][3 * j + 2]
+                        other_obs_pos = np.array([
+                            self.lidar_data[i][3*j],
+                            self.lidar_data[i][3*j+1]
+                        ])
+                        dist_other_obs = np.linalg.norm(other_obs_pos - other_pos)
+                        state[base_idx + 4 + j*2]     = dist_other_obs
+                        state[base_idx + 4 + j*2 + 1] = self.lidar_data[i][3*j+2]
+
                     added_agents_count += 1
 
+                    # -- Si on atteint la capacité max (3 autres), on arrête
+                    if added_agents_count >= 3:
+                        break
+
+        # Tout le reste reste à -1
         return state
+
 
     def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
         """Environment reset with a new optional seed."""

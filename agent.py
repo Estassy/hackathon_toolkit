@@ -110,7 +110,7 @@ class MyAgent():
         self.criterion = nn.MSELoss()
 
         # Pour un entraînement plus stable en FP16 (optionnel)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=(self.device.type == "cuda"))
+        self.scaler = torch.amp.GradScaler(enabled=(self.device.type == "cuda"))
 
     # ----------------------
     # 2.1) Préparation des états
