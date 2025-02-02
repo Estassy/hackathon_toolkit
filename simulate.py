@@ -2,16 +2,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-import time
-from typing import Tuple, Optional, Dict
-
+from typing import Dict
 from env import MazeEnv
 from agent import MyAgent
 import random
-import time
 import torch
-
-import json
 import os
 
 
@@ -26,7 +21,7 @@ def simulation_config(
     Automatically detect the observation dimension from env.reset(), and load checkpoint if needed.
     """
 
-     # 1) Vérifier si l'entrée est un chemin JSON ou un dictionnaire déjà chargé
+    # 1) Vérifier si l'entrée est un chemin JSON ou un dictionnaire déjà chargé
     if isinstance(config_input, str):  # Cas où on passe un chemin JSON
         with open(config_input, 'r') as config_file:
             config = json.load(config_file)
@@ -56,7 +51,6 @@ def simulation_config(
     obs_dim = dummy_state.shape[1] if dummy_state.shape[0] > 0 else 0
 
     # 4) Créer l'agent si nécessaire
-    # Exemple: tu peux ajouter +4 si tu fais un detect_obstacles interne dans agent.py
     agent = None
     if new_agent:
         agent = MyAgent(
@@ -66,7 +60,7 @@ def simulation_config(
         )
 
         # 5) Charger un checkpoint si présent
-        # 🔹 Charger le checkpoint SEULEMENT si load_checkpoint=True (premier appel)
+        # le charge si load_checkpoint=True (premier appel)
         if load_checkpoint:
             _load_checkpoint(agent, checkpoint_path)
 
@@ -164,7 +158,7 @@ def _load_checkpoint(agent: MyAgent, ckpt_path: str):
 
 def multi_config_train(
     config_paths, 
-    max_total_episodes=1000, 
+    max_total_episodes=500, 
     checkpoint_path="multi_config_checkpoint.pth", 
     save_interval=100
 ):
@@ -185,7 +179,7 @@ def multi_config_train(
         with open(config_path, 'r') as f:
             configs.append(json.load(f))
     
-    # Mélanger les configurations pour éviter d'apprendre uniquement sur les plus simples
+    # Mélange les configurations pour éviter d'apprendre uniquement sur les plus simples
     random.shuffle(configs)
     
     # Initialisation de l'environnement et de l'agent avec la première config
@@ -233,7 +227,7 @@ def multi_config_train(
             
             # Sauvegarde périodique du modèle (correcte)
             if (episode_count + 1) % save_interval == 0:
-                save_checkpoint(agent, checkpoint_path)  # ✅ Sauvegarde complète
+                save_checkpoint(agent, checkpoint_path) 
                 print(f"💾 Checkpoint sauvegardé (épisode {episode_count+1}).")
             
             episode_count += 1

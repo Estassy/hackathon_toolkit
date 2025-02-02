@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.multiprocessing as mp
-import json
 
 from env import MazeEnv
 
@@ -64,7 +63,7 @@ class MyAgent():
     def __init__(
         self,
         num_agents: int,
-        state_dim=42,                 # dimensions de l'état existant
+        state_dim=42,                # dimensions de l'état existant
         alpha=0.0005,                # learning rate
         gamma=0.99,                  # discount
         epsilon=1.0,                 # exploration initiale
@@ -93,8 +92,8 @@ class MyAgent():
 
         # Réseau principal (Dueling DQN)
         self.model = DuelingDQN(
-            input_dim=state_dim + 4,  # +4 pour la détection d'obstacles ou pas
-            output_dim=7              # 7 actions
+            input_dim=state_dim + 4,
+            output_dim=7              
         ).to(self.device)
         
         # Réseau cible
@@ -153,11 +152,8 @@ class MyAgent():
                 q_values = self.model(state_tensor)
                 actions = torch.argmax(q_values, dim=1).tolist()
 
-        # ÉTAPE CLÉ : on va "corriger" l'action si le LIDAR indique un obstacle tout proche
         corrected_actions = []
         for i, single_state in enumerate(state):
-            # single_state contient [x, y, orientation, status, goal_x, goal_y,
-            #   dist1, type1, dist2, type2, dist3, type3, ...]
 
             # Admettons dist1,type1 = LIDAR principal
             dist_main = single_state[6]
@@ -165,9 +161,6 @@ class MyAgent():
             
             # Si l'action choisie est "avancer" (ex: action=1 = Up) et que dist_main < 1
             # ou type_main est un mur, on choisit autre chose.
-            # Ici, c'est juste un exemple, tu dois l'adapter à ta logique d'actions
-            # ou à l'orientation si tu as un "moving forward" dépendant de l'orientation...
-            
             chosen_action = actions[i]
             
             # Ex: action=1 (move up) => on suppose que c'est "avancer" dans la direction principale
@@ -299,10 +292,6 @@ class MyAgent():
 # 3) Multiprocessing (optionnel)
 # ----------------------
 def train_parallel(env_config, agent, episodes=1000):
-    """
-    Exemple de code pour faire tourner plusieurs environnements en parallèle.
-    Si tu ne l'utilises pas, tu peux le laisser commenté.
-    """
     num_workers = mp.cpu_count()
     envs = [MazeEnv(**env_config) for _ in range(num_workers)]
     
