@@ -249,7 +249,7 @@ class MyAgent():
         reward_tensor = torch.tensor(rewards_batch, dtype=torch.float32, device=self.device)
         action_tensor = torch.tensor(actions_batch, dtype=torch.long, device=self.device)
 
-        with torch.cuda.amp.autocast(enabled=(self.device.type=="cuda")):
+        with torch.amp.autocast(device_type="cuda", enabled=(self.device.type=="cuda")):
             # Q(s, a) courant
             current_q_values = self.model(state_tensor)
 
