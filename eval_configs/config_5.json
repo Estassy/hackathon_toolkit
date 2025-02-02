@@ -8,6 +8,6 @@
   "max_lidar_dist_second": 3,
   "max_episodes": 10,
   "max_episode_steps": 1000,
-  "render_mode": "none",
+  "render_mode": "human",
   "seed": 28122510
 }

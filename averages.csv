@@ -1,0 +1,11 @@
+config_path,total_reward,evacuated_agents,deactivated_agents
+./eval_configs/config_1.json,-5000.0,0.0,0.0
+./eval_configs/config_10.json,-5000.0,0.0,0.0
+./eval_configs/config_2.json,-5000.0,0.0,0.0
+./eval_configs/config_3.json,-5000.0,0.0,0.0
+./eval_configs/config_4.json,-1079.289999999991,0.8,0.0
+./eval_configs/config_5.json,49.22999999999761,1.0,0.0
+./eval_configs/config_6.json,-4839.34,0.0,0.0
+./eval_configs/config_7.json,-1746.749999999994,0.2,0.0
+./eval_configs/config_8.json,-5000.0,0.0,0.0
+./eval_configs/config_9.json,-5000.0,0.0,0.0
