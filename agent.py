@@ -155,7 +155,7 @@ class MyAgent():
         corrected_actions = []
         for i, single_state in enumerate(state):
 
-            # Admettons dist1,type1 = LIDAR principal
+            # Admettons dist1, type1 = LIDAR principal
             dist_main = single_state[6]
             type_main = single_state[7]
             
@@ -172,7 +172,6 @@ class MyAgent():
             corrected_actions.append(chosen_action)
 
         return corrected_actions
-
 
     # ----------------------
     # 2.3) Détection locale d'obstacles
@@ -271,9 +270,9 @@ class MyAgent():
             # Calcul de la perte
             loss = self.criterion(current_q_values, target_q_values)
 
-        # Backprop
+        # Backpropagation
         self.scaler.scale(loss).backward()
-        # Clip pour éviter explosion des gradients
+        # Clip pour éviter l'explosion des gradients
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.scaler.step(self.optimizer)
         self.scaler.update()
@@ -287,6 +286,21 @@ class MyAgent():
         self.step_count += 1
         if self.step_count % self.update_target_frequency == 0:
             self.target_model.load_state_dict(self.model.state_dict())
+
+    # ----------------------
+    # 2.6) Passage en mode évaluation
+    # ----------------------
+    def set_evaluation_mode(self, eval_epsilon=0.0):
+        """
+        Met le modèle en mode évaluation.
+        Paramètres :
+            eval_epsilon (float): valeur de epsilon à utiliser en évaluation.
+                                   
+        """
+        self.epsilon = eval_epsilon
+        self.model.eval()
+        self.target_model.eval()
+
 
 # ----------------------
 # 3) Multiprocessing (optionnel)

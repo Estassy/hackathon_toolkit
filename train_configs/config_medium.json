@@ -3,7 +3,7 @@
   "walls_proportion": 0.3,
   "num_dynamic_obstacles": 2,
   "num_agents": 2,
-  "communication_range": 5,
+  "communication_range": 7,
   "max_lidar_dist_main": 4,
   "max_lidar_dist_second": 2,
   "max_episodes": 500,

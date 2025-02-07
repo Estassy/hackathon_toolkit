@@ -197,7 +197,7 @@ def multi_config_train(
         while episode_count < max_total_episodes:
             # Sélectionner une configuration aléatoire
             config = random.choice(configs)  # Prendre une config depuis la liste déjà mélangée
-            env, agent, _ = simulation_config(config, new_agent=True, checkpoint_path=checkpoint_path)
+            env, _, _ = simulation_config(config, new_agent=False)
 
 
             # Vérifier si l'agent est bien créé
@@ -271,6 +271,9 @@ def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10
     Returns:
         pd.DataFrame: A DataFrame containing evaluation metrics for each episode and configuration.
     """
+
+    # trained_agent.set_evaluation_mode(eval_epsilon=0.05)
+
     all_results = pd.DataFrame()
 
     for config_path in configs_paths:

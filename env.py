@@ -431,7 +431,7 @@ class MazeEnv(gym.Env):
                 self.lidar_orientation[i] = (self.lidar_orientation[i] + 1) % 4
                 new_pos = agent_pos   # Steady
             if action == 6: # Rotate left
-                self.lidar_orientation[i] = (self.lidar_orientation[i] + 1) % 4
+                self.lidar_orientation[i] = (self.lidar_orientation[i] - 1) % 4
                 new_pos = agent_pos   # Steady
 
             proposed_positions.append(new_pos)
