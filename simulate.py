@@ -69,7 +69,7 @@ def simulation_config(
 
 def _load_checkpoint(agent: MyAgent, ckpt_path: str):
     """
-    Tente de charger un checkpoint (modèle, epsilon, etc.) si le fichier existe.
+    Tente de charger un checkpoint (modèle,optimizer, epsilon, etc.) si le fichier existe.
     En cas d'erreur de dimension, on ignore le checkpoint et on repart sur des poids aléatoires.
     """
     if not os.path.isfile(ckpt_path):
@@ -80,6 +80,11 @@ def _load_checkpoint(agent: MyAgent, ckpt_path: str):
         checkpoint = torch.load(ckpt_path, map_location=agent.device)
         agent.model.load_state_dict(checkpoint["model_main"])
         agent.target_model.load_state_dict(checkpoint["model_target"])
+
+        # Charger l'état de l'optimiseur (important pour reprendre l'entraînement là où il était)
+        if "optimizer_state" in checkpoint:
+            agent.optimizer.load_state_dict(checkpoint["optimizer_state"])
+            
         agent.epsilon = checkpoint.get("epsilon", agent.epsilon)
         agent.step_count = checkpoint.get("step_count", agent.step_count)
         print(f"Checkpoint chargé avec succès depuis {ckpt_path} !")
@@ -252,6 +257,7 @@ def save_checkpoint(agent: MyAgent, ckpt_path: str):
     checkpoint = {
         "model_main": agent.model.state_dict(),
         "model_target": agent.target_model.state_dict(),
+        "optimizer_state": agent.optimizer.state_dict(),
         "epsilon": agent.epsilon,
         "step_count": agent.step_count
     }
