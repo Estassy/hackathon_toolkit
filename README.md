@@ -18,11 +18,13 @@ The agent is implemented using a Dueling Deep Q-Network (Dueling DQN) architectu
 
 3. **Epsilon-Greedy Exploration**: The agent uses an epsilon-greedy strategy to balance exploration and exploitation. The epsilon value decays over time to reduce exploration as the agent learns.
 
-4. **Experience Replay**: The agent stores experiences in a replay buffer and samples batches of experiences for training. This helps stabilize training by breaking the correlation between consecutive experiences.
+4. **Experience Replay**: A (prioritized) replay buffer is used to break correlations between consecutive experiences and improve training stability.
 
 5. **Double DQN**: The agent uses Double DQN to reduce overestimation bias by using the target network to select the best action and the main network to evaluate it.
 
-6. **Checkpoint Management**: The agent's state, including the model weights, epsilon value, and step count, is periodically saved to a checkpoint file. This allows training to resume from the last saved state in case of interruptions.
+6. **Checkpoint Management**: The model is periodically saved in two formats:
+   - `checkpoint.pth`: latest model state (regular snapshot)
+   - `checkpoint_best.pth`: best-performing model so far (based on totale episode reward)
 
 ### Multi-Configuration Training
 
@@ -36,7 +38,7 @@ The training process involves training the agent on multiple configurations to m
 
 3. **Training Loop**: The agent is trained across multiple episodes, with configurations randomly selected for each episode. The agent's experiences are stored, and the model is trained using batches from the replay buffer.
 
-4. **Checkpoint Saving**: The agent's state is periodically saved to a checkpoint file to ensure progress is not lost.
+4. **Checkpoint Saving**: Regular checkpoints are saved (`.pth`), and the best-performing model is tracked separately (`_best.pth`).
 
 5. **Evaluation**: The trained agent is evaluated on multiple configurations to assess its performance. Metrics such as total reward, evacuated agents, and deactivated agents are recorded.
 
@@ -44,18 +46,16 @@ The training process involves training the agent on multiple configurations to m
 
 ### `simulate.py`
 
-- **Function `simulation_config`**: Configures the environment and agent using a JSON configuration file. It also handles loading checkpoints if needed.
-- **Function `_load_checkpoint`**: Loads the agent's state from a checkpoint file.
-- **Function `multi_config_train`**: Trains the agent on multiple configurations to improve generalization. It periodically saves checkpoints.
-- **Function `save_checkpoint`**: Saves the agent's state to a checkpoint file.
-- **Function `evaluate`**: Evaluates the trained agent on multiple configurations and records metrics.
-- **Function `plot_cumulated_rewards`**: Plots and saves the rewards over episodes.
+- **`simulation_config`**: Creates environments and optionally loads checkpoints.
+- **`multi_config_train`**: Manages multi-env training logic, checkpointing, and logging.
+- **`evaluate`**: Evaluates a trained agent on multiple scenarios.
+- **`save_checkpoint`, `save_best_checkpoint`**: Checkpointing utilities.
+- **`plot_cumulated_rewards`**: Visualizes training progress.
 
 ### `agent.py`
 
 - **Class `DuelingDQN`**: Implements the Dueling DQN architecture.
 - **Class `MyAgent`**: Implements the agent's logic, including state preparation, action selection, obstacle detection, experience storage, and model training.
-- **Function `train_parallel`**: (Optional) Example code for parallel training using multiple environments.
 
 ### `reward.py`
 

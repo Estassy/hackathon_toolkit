@@ -14,11 +14,19 @@ def simulation_config(
     config_input,
     new_agent: bool = True,
     checkpoint_path: str = "multi_config_checkpoint.pth",
-    load_checkpoint: bool = False
+    load_checkpoint: bool = False,
+    use_best_checkpoint: bool = False  # New parameter
 ):
     """
     Configure the environment and (optionally) an agent using a JSON configuration file.
     Automatically detect the observation dimension from env.reset(), and load checkpoint if needed.
+    
+    Args:
+        config_input: Path to JSON file or config dictionary
+        new_agent: Whether to create a new agent
+        checkpoint_path: Path to the checkpoint file
+        load_checkpoint: Whether to load a checkpoint
+        use_best_checkpoint: Whether to use the best checkpoint instead of the regular one
     """
 
     # 1) Vérifier si l'entrée est un chemin JSON ou un dictionnaire déjà chargé
@@ -54,15 +62,29 @@ def simulation_config(
     agent = None
     if new_agent:
         agent = MyAgent(
-            num_agents=config.get('num_agents'),
+            num_agents=config.get('num_agents'),  # Only loads regular checkpoint, never the "_best" one
             state_dim=obs_dim,  # ou obs_dim + 4 selon tes besoins
             # d'autres hyperparams si besoin
         )
 
         # 5) Charger un checkpoint si présent
-        # le charge si load_checkpoint=True (premier appel)
         if load_checkpoint:
-            _load_checkpoint(agent, checkpoint_path)
+            if use_best_checkpoint:
+                # Try to load the best checkpoint first
+                best_path = checkpoint_path.replace('.pth', '_best.pth')
+                if os.path.isfile(best_path):
+                    success = _load_checkpoint(agent, best_path)
+                    if success:
+                        print(f"Meilleur checkpoint chargé avec succès!")
+                    else:
+                        # Fall back to regular checkpoint if best fails
+                        _load_checkpoint(agent, checkpoint_path)
+                else:
+                    # Fall back to regular checkpoint if best doesn't exist
+                    _load_checkpoint(agent, checkpoint_path)
+            else:
+                # Just load the regular checkpoint
+                _load_checkpoint(agent, checkpoint_path)
 
     return env, agent, config
 
@@ -71,9 +93,13 @@ def _load_checkpoint(agent: MyAgent, ckpt_path: str):
     """
     Tente de charger un checkpoint (modèle,optimizer, epsilon, etc.) si le fichier existe.
     En cas d'erreur de dimension, on ignore le checkpoint et on repart sur des poids aléatoires.
+    
+    Returns:
+        bool: True if checkpoint was loaded successfully, False otherwise
     """
     if not os.path.isfile(ckpt_path):
-        return
+        print(f"Fichier de checkpoint non trouvé: {ckpt_path}")
+        return False
 
     print(f"Tentative de chargement du checkpoint: {ckpt_path}")
     try:
@@ -88,84 +114,19 @@ def _load_checkpoint(agent: MyAgent, ckpt_path: str):
         agent.epsilon = checkpoint.get("epsilon", agent.epsilon)
         agent.step_count = checkpoint.get("step_count", agent.step_count)
         print(f"Checkpoint chargé avec succès depuis {ckpt_path} !")
+        return True
     except RuntimeError as e:
         print(f"ERREUR : {e}")
         print("Mismatch de dimension ? On ignore ce checkpoint.")
+        return False
 
-    
-
-
-
-# def train(
-#     config_path: str,
-#     max_episodes_override: int = None,
-#     checkpoint_path: str = "my_full_checkpoint.pth",
-#     save_interval: int = 50
-# ):
-#     """
-#     Train the agent with the environment specified by `config_path`.
-#     Use the dimension detection logic, load old checkpoint if available,
-#     and save new checkpoints regularly.
-#     """
-
-#     # 1) Créer env + agent
-#     # new_agent=True => on crée un nouvel agent, potentiellement chargé depuis un checkpoint
-#     env, agent, config = simulation_config(config_path, new_agent=True, checkpoint_path=checkpoint_path)
-
-#     max_episodes = max_episodes_override or config.get('max_episodes', 200)
-#     all_rewards = []
-#     episode_count = 0
-
-#     try:
-#         while episode_count < max_episodes:
-#             state, info = env.reset()
-#             total_reward = 0.0
-#             terminated = False
-#             truncated = False
-
-#             while not (terminated or truncated):
-#                 env_map = env.grid
-#                 actions = agent.get_action(state, env_map, evaluation=False)
-#                 next_state, rewards, terminated, truncated, info = env.step(actions)
-
-#                 total_reward += np.sum(rewards)
-
-#                 # Stockage dans le replay
-#                 for i in range(agent.num_agents):
-#                     agent.store_experience(state[i], actions[i], rewards[i], next_state[i])
-
-#                 # Apprentissage du modèle
-#                 agent.train_model(env_map)
-
-#                 state = next_state
-
-#             all_rewards.append(total_reward)
-#             print(f"Episode {episode_count+1}/{max_episodes}, total_reward={total_reward}")
-
-#             # Sauvegarde du checkpoint à intervalles réguliers
-#             if (episode_count + 1) % save_interval == 0:
-#                 save_checkpoint(agent, checkpoint_path)
-#                 print(f"Checkpoint sauvegardé (épisode {episode_count+1}).")
-
-#             episode_count += 1
-
-#     except KeyboardInterrupt:
-#         print("Entraînement interrompu par l'utilisateur.")
-
-#     finally:
-#         env.close()
-
-#     # Sauvegarde finale après la boucle
-#     save_checkpoint(agent, checkpoint_path)
-#     print("Entraînement terminé. Checkpoint final sauvegardé.")
-
-#     return agent, all_rewards
 
 def multi_config_train(
     config_paths, 
-    max_total_episodes=500, 
+    max_total_episodes=3000, 
     checkpoint_path="multi_config_checkpoint.pth", 
-    save_interval=100
+    save_interval=100,
+    validation_interval=300  # New parameter
 ):
     """
     Entraîne un agent sur plusieurs configurations JSON pour le rendre plus généraliste.
@@ -175,6 +136,7 @@ def multi_config_train(
         max_total_episodes (int): Nombre total d'épisodes pour l'entraînement.
         checkpoint_path (str): Emplacement où sauvegarder le modèle entraîné.
         save_interval (int): Intervalle d'épisodes pour sauvegarder un checkpoint.
+        validation_interval (int): Intervalle d'épisodes pour valider le modèle.
     """
     print("\n🚀 Début de l'entraînement multi-configurations 🚀\n")
     
@@ -197,6 +159,7 @@ def multi_config_train(
     
     all_rewards = []
     episode_count = 0
+    best_reward = float('-inf')
     
     try:
         while episode_count < max_total_episodes:
@@ -221,7 +184,9 @@ def multi_config_train(
                 
                 total_reward += np.sum(rewards)
                 
-                for i in range(agent.num_agents):
+                # Fix: Use the actual number of agents in the current state
+                current_num_agents = len(state)
+                for i in range(min(agent.num_agents, current_num_agents)):
                     agent.store_experience(state[i], actions[i], rewards[i], next_state[i])
                 
                 agent.train_model(env_map)
@@ -234,6 +199,14 @@ def multi_config_train(
             if (episode_count + 1) % save_interval == 0:
                 save_checkpoint(agent, checkpoint_path) 
                 print(f"💾 Checkpoint sauvegardé (épisode {episode_count+1}).")
+            
+            # Validation périodique sur un environnement différent
+            if (episode_count + 1) % validation_interval == 0:
+                validation_reward = validate_agent(agent, random.choice(configs))
+                print(f"📊 Validation (épisode {episode_count+1}): Reward = {validation_reward:.2f}")
+            
+            # Sauvegarde du meilleur modèle
+            best_reward = save_best_checkpoint(agent, total_reward, best_reward, checkpoint_path)
             
             episode_count += 1
             
@@ -264,53 +237,91 @@ def save_checkpoint(agent: MyAgent, ckpt_path: str):
     torch.save(checkpoint, ckpt_path)
 
 
+def save_best_checkpoint(agent: MyAgent, reward: float, best_reward: float, ckpt_path: str) -> float:
+    """
+    Sauvegarde le checkpoint uniquement si la récompense actuelle est meilleure que la meilleure précédente.
+    Retourne la meilleure récompense (mise à jour si nécessaire).
+    """
+    if reward > best_reward:
+        best_path = ckpt_path.replace('.pth', '_best.pth')
+        save_checkpoint(agent, best_path)
+        return reward
+    return best_reward
 
-def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10) -> pd.DataFrame:
+
+def validate_agent(agent: MyAgent, config: dict) -> float:
+    """
+    Validate the agent on a given configuration and return the total reward.
+    """
+    env, _, _ = simulation_config(config, new_agent=False)
+    state, info = env.reset()
+    total_reward = 0.0
+    terminated, truncated = False, False
+
+    while not (terminated or truncated):
+        actions = agent.get_action(state, evaluation=True)
+        state, rewards, terminated, truncated, info = env.step(actions)
+        total_reward += np.sum(rewards)
+
+    env.close()
+    return total_reward
+
+
+def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10, use_best_checkpoint: bool = True) -> pd.DataFrame:
     """
     Evaluate a trained agent on multiple configurations, calculate metrics, and visualize results.
-
-    Args:
-        configs_paths (list): List of paths to the configuration JSON files.
-        trained_agent (MyAgent): A pre-trained agent to evaluate.
-        num_episodes (int): Number of episodes to run for evaluation per configuration. Defaults to 10.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing evaluation metrics for each episode and configuration.
+    Reverted to the older evaluation approach.
     """
 
-    # trained_agent.set_evaluation_mode(eval_epsilon=0.05)
+    import pandas as pd
+    import time
 
     all_results = pd.DataFrame()
 
     for config_path in configs_paths:
         print(f"\n--- Evaluating Configuration: {config_path} ---")
 
-        env, _, config = simulation_config(config_path, new_agent=False)
+        env, _, config = simulation_config(config_path, new_agent=False, use_best_checkpoint=use_best_checkpoint)
 
         metrics = []
+        total_reward = 0
+        episode_count = 0
+
+        state, info = env.reset()
+        time.sleep(1)
 
         try:
-            for episode in range(num_episodes):
-                state, info = env.reset()
-                total_reward = 0
-                terminated = False
+            while episode_count < num_episodes:
+                actions = trained_agent.get_action(state, evaluation=True)
+                state, rewards, terminated, truncated, info = env.step(actions)
+                total_reward += sum(rewards)
+                
+                print(f"\rEpisode {episode_count + 1}/{num_episodes}, Step {info['current_step']}, "
+                    f"Reward: {total_reward:.2f}, "
+                    f"Evacuated: {len(info['evacuated_agents'])}, "
+                    f"Deactivated: {len(info['deactivated_agents'])}", end='')
 
-                while not terminated:
-                    env_map = env.grid
-                    actions = trained_agent.get_action(state, env_map, evaluation=True)
-                    state, rewards, terminated, truncated, info = env.step(actions)
-                    total_reward += sum(rewards)
+                time.sleep(1)
 
-                metrics.append({
-                    "config_path": config_path,
-                    "episode": episode + 1,
-                    "total_reward": total_reward,
-                    "evacuated_agents": len(info['evacuated_agents']),
-                    "deactivated_agents": len(info['deactivated_agents']),
-                })
+                if terminated or truncated:
+                    print("\r")
+                    metrics.append({
+                        "config_path": config_path,
+                        "episode": episode_count + 1,
+                        "steps": info['current_step'],
+                        "reward": total_reward,
+                        "evacuated": len(info['evacuated_agents']),
+                        "deactivated": len(info['deactivated_agents'])
+                    })
+
+                    episode_count += 1
+                    total_reward = 0
+
+                    if episode_count < num_episodes:
+                        state, info = env.reset()
 
         except KeyboardInterrupt:
-            print("Evaluation interrupted by user.")
+            print("\nSimulation interrupted by the user")
 
         finally:
             env.close()
@@ -318,8 +329,9 @@ def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10
         config_results = pd.DataFrame(metrics)
         all_results = pd.concat([all_results, config_results], ignore_index=True)
 
-    all_results.to_csv('evaluation_results.csv', index=False)
+    all_results.to_csv('all_results.csv', index=False)
     return all_results
+
 
 def plot_cumulated_rewards(rewards: list, interval: int = 100):
     """

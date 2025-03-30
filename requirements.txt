@@ -4,3 +4,4 @@ matplotlib
 gymnasium
 pygame
 torch
+seaborn
