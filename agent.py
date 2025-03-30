@@ -111,6 +111,8 @@ class MyAgent():
         # Pour un entraînement plus stable en FP16 (optionnel)
         self.scaler = torch.amp.GradScaler(enabled=(self.device.type == "cuda"))
 
+        self.desired_dim = 42
+
     # ----------------------
     # 2.1) Préparation des états
     # ----------------------
@@ -313,7 +315,7 @@ def train_parallel(env_config, agent, episodes=1000):
         for _ in range(episodes // num_workers):
             state, _ = env.reset()
             while True:
-                actions = agent.get_action(state, env.get_env_map())
+                actions = agent.get_action(state, env.grid)
                 next_state, rewards, done, _, _ = env.step(actions)
                 
                 # Stockage
@@ -326,7 +328,7 @@ def train_parallel(env_config, agent, episodes=1000):
                     )
                 
                 # Entraînement
-                agent.train_model(env.get_env_map())
+                agent.train_model(env.grid)
                 state = next_state
                 if done:
                     break

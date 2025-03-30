@@ -124,7 +124,7 @@ def _load_checkpoint(agent: MyAgent, ckpt_path: str):
 #             truncated = False
 
 #             while not (terminated or truncated):
-#                 env_map = env.get_env_map()
+#                 env_map = env.grid
 #                 actions = agent.get_action(state, env_map, evaluation=False)
 #                 next_state, rewards, terminated, truncated, info = env.step(actions)
 
@@ -215,7 +215,7 @@ def multi_config_train(
             terminated, truncated = False, False
             
             while not (terminated or truncated):
-                env_map = env.get_env_map()
+                env_map = env.grid
                 actions = agent.get_action(state, env_map, evaluation=False)
                 next_state, rewards, terminated, truncated, info = env.step(actions)
                 
@@ -296,7 +296,7 @@ def evaluate(configs_paths: list, trained_agent: MyAgent, num_episodes: int = 10
                 terminated = False
 
                 while not terminated:
-                    env_map = env.get_env_map()
+                    env_map = env.grid
                     actions = trained_agent.get_action(state, env_map, evaluation=True)
                     state, rewards, terminated, truncated, info = env.step(actions)
                     total_reward += sum(rewards)
