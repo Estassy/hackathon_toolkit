@@ -63,19 +63,13 @@ class MazeEnv(gym.Env):
         self.max_lidar_dist_main = max_lidar_dist_main
         self.max_lidar_dist_second = max_lidar_dist_second
         self.action_space = spaces.Discrete(7)
-        # self.single_agent_state_size = 3 + 3  + 2 * 3 + 4 * (num_agents - 1) + 6 * (num_agents - 1)  # State space for a single agent
-        
-        #############################
-        # Forcer la taille d'état par agent à 42
-        self.single_agent_state_size = 42
-        #############################
-
+        self.single_agent_state_size = 3 + 3  + 2 * 3 + 4 * (num_agents - 1) + 6 * (num_agents - 1)  # State space for a single agent
         # agent pos, goal pos, LIDAR obs (3 directions dist, obstacle found), other agent positions + LIDAR obs
         self.lidar_directions = {
             0: [(-1, 0), (0, 1), (0, -1)],   # Up main, Right then Left second
-            1: [(0, 1), (1, 0), (-1, 0)],    # Left main, Down then Up second
+            1: [(0, 1), (1, 0), (-1, 0)],    # Right main, Up then Down second
             2: [(1, 0), (0, -1), (0, 1)],    # Down main, Left then Right second
-            3: [(0, -1), (-1, 0), (1, 0)]    # Right main, Up then Down second
+            3: [(0, -1), (-1, 0), (1, 0)]    # Left main, Down then Up second
         }
 
         # Initialization of the random number generaton
@@ -124,10 +118,7 @@ class MazeEnv(gym.Env):
         ]
         return start_positions, goal_area
 
-    def get_env_map(self):
-        """Retourne la carte actuelle de l'environnement."""
-        return np.array(self.grid)  # Convertit en numpy array si besoin
-    
+
     def initialize_dynamic_obstacles(self):
         """
         Initialize dynamic obstacles with seeded random positions,
@@ -235,100 +226,66 @@ class MazeEnv(gym.Env):
 
         return results
 
+
     def get_agent_state(self, agent_idx: int) -> np.ndarray:
-        """
-        Get state for a specific agent under a fixed dimension (42).
-        This ensures we always return the same size vector,
-        even if the environment or number of agents changes.
-        """
-
-        # --- 1) On force la taille à 42
-        state = np.full(self.single_agent_state_size, -1, dtype=np.float32)
-
-        # Si l'agent est déjà hors jeu, on ne remplit rien (tout reste -1)
+        """Get state for a specific agent: self position, goal position, lidar scan, and other close agents positions"""
+        state = np.full(self.single_agent_state_size, -1, dtype=np.float32)   # Initialization with -1
+        
+        # If the agent is deactivated or evacuated, return state with -1
         if agent_idx in self.deactivated_agents or agent_idx in self.evacuated_agents:
             return state
-
-        # --- 2) REMPLIR LES CHAMPS DISPONIBLES ---
-
-        # 2.1) Position de l'agent (2 cases) + orientation LIDAR (1 case)
+        
+        # Agent position
         agent_pos = np.array(self.agent_positions[agent_idx])
-        state[0:2] = agent_pos  # x,y
+        state[0:2] = agent_pos
         state[2] = self.lidar_orientation[agent_idx]
 
-        # 2.2) Statut de l'agent (1 case)
+        # Agent status (evacuated, deactivated, running)
         if agent_idx in self.evacuated_agents:
-            state[3] = 1.0
+            state[3] = 1
         elif agent_idx in self.deactivated_agents:
-            state[3] = 2.0
+            state[3] = 2
         else:
-            state[3] = 0.0
+            state[3] = 0
 
-        # 2.3) Position du but (2 cases)
+        # Goal position
         goal_pos = self.goal_area[agent_idx]
-        state[4:6] = goal_pos  # x_goal, y_goal
+        state[4:6] = goal_pos
 
-        # 2.4) LIDAR principal + 2 directions secondaires (3x2=6 cases)
-        #  (distance, type_obstacle) pour chaque direction
-        for i in range(3):
-            # i=0 => principal, i=1 => direction secondaire, i=2 => autre secondaire
-            obstacle_pos = np.array([self.lidar_data[agent_idx][3 * i],
-                                    self.lidar_data[agent_idx][3 * i + 1]])
+        # LIDAR state
+        for i in range(3):  # Main direction & 2 others directions
+            obstacle_pos = np.array([self.lidar_data[agent_idx][3 * i], self.lidar_data[agent_idx][3 * i + 1]])
             distance_to_obstacle = np.linalg.norm(obstacle_pos - agent_pos)
-            state[6 + i * 2]     = distance_to_obstacle
+            state[6 + i * 2] = distance_to_obstacle
             state[6 + i * 2 + 1] = self.lidar_data[agent_idx][3 * i + 2]
-        # => on a rempli [6..11]
 
-        # 2.5) Autres agents dans la zone de communication
-        # Indice de départ dans le vecteur pour la partie "autres agents"
-        base_for_others = 12
-
-        # On suppose qu'on peut stocker jusqu'à 3 autres agents (si total 4).
-        # Ici, chaque "autre agent" prend 10 cases => 3 x 10 = 30
-        # => 12..41 (30 valeurs). = 42 total.
-
+        # Other agents positions and LIDAR data within communication range
         added_agents_count = 0
-        # On parcourt tous les autres agents
+
         for i, other_pos in enumerate(self.agent_positions):
-            if i != agent_idx and i not in self.evacuated_agents:
-                # Check distance
+            if i!= agent_idx:
                 distance = np.linalg.norm(agent_pos - other_pos)
-                if distance < self.communication_range:
-                    # Indice de base pour l'agent "i"
-                    base_idx = base_for_others + added_agents_count * 10
-
-                    # -- (a) Position (2 cases)
-                    state[base_idx : base_idx+2] = other_pos
-                    # -- (b) Orientation (1 case)
-                    state[base_idx+2] = self.lidar_orientation[i]
-                    # -- (c) Statut (1 case)
+                if distance < self.communication_range:   # Communication only if in communication range
+                    base_index = 11 + added_agents_count * 2
+                    # Insert other agent's position
+                    state[(12 + added_agents_count * 10):(12 + added_agents_count * 10 + 2)] = other_pos
+                    state[(12 + added_agents_count * 10 + 2)] = self.lidar_orientation[i]
+                    # Insert other agent's status
                     if i in self.evacuated_agents:
-                        state[base_idx+3] = 1.0
+                        state[(12 + added_agents_count * 10 + 3)] = 1
                     elif i in self.deactivated_agents:
-                        state[base_idx+3] = 2.0
+                        state[(12 + added_agents_count * 10 + 3)] = 2
                     else:
-                        state[base_idx+3] = 0.0
-                    # -- (d) LIDAR data of l'autre agent (3 x 2 = 6 cases)
-                    # distance + type
-                    # On répète la logique
+                        state[(12 + added_agents_count * 10 + 3)] = 0
+                    # Insert LIDAR data of the other agent
                     for j in range(3):
-                        other_obs_pos = np.array([
-                            self.lidar_data[i][3*j],
-                            self.lidar_data[i][3*j+1]
-                        ])
-                        dist_other_obs = np.linalg.norm(other_obs_pos - other_pos)
-                        state[base_idx + 4 + j*2]     = dist_other_obs
-                        state[base_idx + 4 + j*2 + 1] = self.lidar_data[i][3*j+2]
-
+                        other_obstacle_pos = np.array([self.lidar_data[i][3 * j], self.lidar_data[i][3 * j + 1]])
+                        distance_to_other_obstacle = np.linalg.norm(other_obstacle_pos - other_pos)
+                        state[(12 + added_agents_count * 10 + 4 + j * 2)] = distance_to_other_obstacle
+                        state[(12 + added_agents_count * 10 + 4 + j * 2 + 1)] = self.lidar_data[i][3 * j + 2]
                     added_agents_count += 1
 
-                    # -- Si on atteint la capacité max (3 autres), on arrête
-                    if added_agents_count >= 3:
-                        break
-
-        # Tout le reste reste à -1
         return state
-
 
     def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
         """Environment reset with a new optional seed."""
@@ -424,6 +381,7 @@ class MazeEnv(gym.Env):
             if 0 <= action <= 4:
                 if i in self.deactivated_agents or i in self.evacuated_agents:
                     new_pos = agent_pos   # Steady
+                    proposed_positions.append(new_pos)
                     continue
                 new_pos = agent_pos + self.directions[action]   # New position
                 
@@ -500,79 +458,65 @@ class MazeEnv(gym.Env):
 
 
     def resolve_collisions(self, proposed_positions: List[np.ndarray]) -> None:
-        # On calcule la "priorité" pour l'ordre de résolution des collisions
+        # Compute priorities only for active agents
         priorities = []
+        
         for i, pos in enumerate(proposed_positions):
             if i in self.evacuated_agents or i in self.deactivated_agents:
                 priorities.append(float('inf'))
                 continue
-            # Priorité = distance mini au goal
             min_dist_to_goal = min(np.linalg.norm(pos - np.array(goal)) for goal in self.goal_area)
             priorities.append(min_dist_to_goal)
 
-        # On trie les agents par ordre croissant de distance au goal
         agent_order = sorted(range(len(priorities)), key=lambda k: priorities[k])
+
         new_positions = [pos.copy() for pos in self.agent_positions]
 
         def is_valid_position(pos, agent_idx):
-            """ Return (is_valid, collision_type) for the proposed position."""
-            # 1) On vérifie les limites de la grille
-            if not (0 <= pos[0] < self.grid_size and 0 <= pos[1] < self.grid_size):
+            """ Return the type of collision for a given position"""
+            if not (0 <= pos[0] < self.grid_size and 0 <= pos[1] < self.grid_size):   # Check boundaries
                 return False, "out_of_bounds"
 
             pos_tuple = tuple(pos.astype(int))
 
-            # 2) On vérifie s'il y a un mur
+            # Check walls
             if pos_tuple in self.walls:
                 return False, "wall"
 
-            # 3) On vérifie s'il y a un obstacle dynamique
+            # Check dynamic obstacles
             if pos_tuple in self.dynamic_obstacles:
                 return False, "dynamic_obstacle"
-
-            # 4) On vérifie s'il y a un obstacle dynamique dans les cases adjacentes
             x, y = pos
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)]:
                 adjacent_pos = (x + dx, y + dy)
                 if adjacent_pos in self.dynamic_obstacles:
                     return False, "dynamic_obstacle"
 
-            # 5) On vérifie qu'aucun autre agent actif n'est déjà là
-            for j, other_pos in enumerate(new_positions):
-                if j != agent_idx and j not in self.evacuated_agents and j not in self.deactivated_agents:
+            # Check other agents
+            for i, other_pos in enumerate(new_positions):
+                if i != agent_idx and i not in self.evacuated_agents and i not in self.deactivated_agents:
                     if np.array_equal(pos.astype(int), other_pos.astype(int)):
                         return False, "agent"
 
             return True, None
 
-        # On résout les collisions par ordre de priorité
+        # Resolve collisions by priority order
         for idx in agent_order:
             if idx in self.evacuated_agents or idx in self.deactivated_agents:
                 continue
-
+            
             valid, col_type = is_valid_position(proposed_positions[idx], idx)
-
+            # Si la position proposée est valide, l'utiliser
             if valid:
-                # Position valide : on autorise le déplacement
                 new_positions[idx] = proposed_positions[idx]
-            else:
-                if col_type in ["out_of_bounds", "agent"]:
-                    # On ne désactive pas, on reste simplement sur place
-                    new_positions[idx] = self.agent_positions[idx]
-                elif col_type in ["dynamic_obstacle", "wall"]:
-                    # Ancien code désactivait l'agent :
-                    # new_positions[idx] = np.array([-1, -1])
-                    # self.deactivated_agents.add(idx)
-
-                    # NOUVELLE LOGIQUE : on reste sur place (pas de désactivation)
-                    new_positions[idx] = self.agent_positions[idx]
-
-                    # Si tu veux un petit malus, tu peux le gérer dans reward.py
-                    # par ex. en notant quelque part que l'agent "heurte un mur".
-                    # Mais on ne le retire plus du jeu.
+                continue
+            elif col_type in ["out_of_bounds", "agent"]:
+                new_positions[idx] = self.agent_positions[idx]
+            elif col_type in ["dynamic_obstacle", "wall"]:
+                new_positions[idx] = np.array([-1, -1])
+                self.deactivated_agents.add(idx)
 
         self.agent_positions = new_positions
-
 
 
     def seed(self, seed=None):  
