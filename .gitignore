@@ -1,4 +1,5 @@
 
 # ne pas tenir compte des fichiers de configuration .pyc
-__pycache__/
+
+*.pyc
 

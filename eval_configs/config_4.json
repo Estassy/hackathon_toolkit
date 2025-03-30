@@ -1,1 +1,13 @@
-{"param": "value_4"}
+{
+  "grid_size": 15,
+  "walls_proportion": 0.4,
+  "num_dynamic_obstacles": 1,
+  "num_agents": 4,
+  "communication_range": 5,
+  "max_lidar_dist_main": 5,
+  "max_lidar_dist_second": 3,
+  "max_episodes": 10,
+  "max_episode_steps": 1000,
+  "render_mode": "none",
+  "seed": 281225102
+}
