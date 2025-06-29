@@ -67,9 +67,9 @@ class MazeEnv(gym.Env):
         # agent pos, goal pos, LIDAR obs (3 directions dist, obstacle found), other agent positions + LIDAR obs
         self.lidar_directions = {
             0: [(-1, 0), (0, 1), (0, -1)],   # Up main, Right then Left second
-            1: [(0, 1), (1, 0), (-1, 0)],    # Left main, Down then Up second
+            1: [(0, 1), (1, 0), (-1, 0)],    # Right main, Up then Down second
             2: [(1, 0), (0, -1), (0, 1)],    # Down main, Left then Right second
-            3: [(0, -1), (-1, 0), (1, 0)]    # Right main, Up then Down second
+            3: [(0, -1), (-1, 0), (1, 0)]    # Left main, Down then Up second
         }
 
         # Initialization of the random number generaton
@@ -263,7 +263,7 @@ class MazeEnv(gym.Env):
         added_agents_count = 0
 
         for i, other_pos in enumerate(self.agent_positions):
-            if i!= agent_idx and i not in self.evacuated_agents:
+            if i!= agent_idx:
                 distance = np.linalg.norm(agent_pos - other_pos)
                 if distance < self.communication_range:   # Communication only if in communication range
                     base_index = 11 + added_agents_count * 2
@@ -381,6 +381,7 @@ class MazeEnv(gym.Env):
             if 0 <= action <= 4:
                 if i in self.deactivated_agents or i in self.evacuated_agents:
                     new_pos = agent_pos   # Steady
+                    proposed_positions.append(new_pos)
                     continue
                 new_pos = agent_pos + self.directions[action]   # New position
                 
@@ -388,7 +389,7 @@ class MazeEnv(gym.Env):
                 self.lidar_orientation[i] = (self.lidar_orientation[i] + 1) % 4
                 new_pos = agent_pos   # Steady
             if action == 6: # Rotate left
-                self.lidar_orientation[i] = (self.lidar_orientation[i] + 1) % 4
+                self.lidar_orientation[i] = (self.lidar_orientation[i] - 1) % 4
                 new_pos = agent_pos   # Steady
 
             proposed_positions.append(new_pos)
@@ -459,6 +460,7 @@ class MazeEnv(gym.Env):
     def resolve_collisions(self, proposed_positions: List[np.ndarray]) -> None:
         # Compute priorities only for active agents
         priorities = []
+        
         for i, pos in enumerate(proposed_positions):
             if i in self.evacuated_agents or i in self.deactivated_agents:
                 priorities.append(float('inf'))
@@ -467,6 +469,7 @@ class MazeEnv(gym.Env):
             priorities.append(min_dist_to_goal)
 
         agent_order = sorted(range(len(priorities)), key=lambda k: priorities[k])
+
         new_positions = [pos.copy() for pos in self.agent_positions]
 
         def is_valid_position(pos, agent_idx):
