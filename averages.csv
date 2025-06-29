@@ -1,0 +1,11 @@
+config_path,avg_steps,avg_reward,avg_evacuated,avg_deactivated
+./eval_configs/config_1.json,98.0,-18199.699168934592,0.3,3.7
+./eval_configs/config_10.json,339.0,-69509.66527303049,0.0,3.8
+./eval_configs/config_2.json,92.5,-19489.07872759034,0.0,4.0
+./eval_configs/config_3.json,97.4,-18443.41058235765,0.0,4.0
+./eval_configs/config_4.json,80.7,-18836.906594799788,0.0,4.0
+./eval_configs/config_5.json,88.5,-16309.96487979509,0.0,4.0
+./eval_configs/config_6.json,281.9,-57213.435753034755,0.0,4.0
+./eval_configs/config_7.json,40.9,-8929.829419328373,0.0,4.0
+./eval_configs/config_8.json,596.1,-131711.5905930792,0.0,3.6
+./eval_configs/config_9.json,179.3,-42989.58020585261,0.0,4.0
